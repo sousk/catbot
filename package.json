@@ -4,11 +4,19 @@
   "description": "A slack bot which serves cat gifs, as much as satisfying your thirst with a glass of water in a desert.",
   "main": "index.js",
   "dependencies": {
-    "config": "^1.20.1"
+    "botkit": "^0.1.1",
+    "config": "^1.20.1",
+    "express": "^4.13.4",
+    "request": "^2.72.0"
   },
   "devDependencies": {},
+  "engines": {
+    "node": "~4.2"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js",
+    "monitor": "nodemon app.js",
+    "deploy": "gcloud preview app deploy"
   },
   "author": "@sou"
 }
