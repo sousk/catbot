@@ -13,15 +13,15 @@
 // limitations under the License.
 
 // [START app]
-'use strict';
 
-var request = require('request')
+var request = require('request');
 var express = require('express');
 
 var app = express();
 
 app.get('/', function(req, res) {
-  res.status(200).send("Yeah, You've been watched")
+  console.log(req.query);
+  res.status(200).send("hello");
 });
 
 // Start the server
@@ -33,80 +33,81 @@ var server = app.listen(process.env.PORT || '8080', '0.0.0.0', function() {
 
 var config = require('config');
 var Botkit = require('botkit');
-var os = require('os');
 
 var controller = Botkit.slackbot({
     // debug: true,
 });
 
-var bot = controller.spawn({
-    token: config.get('slack.token')
+controller.spawn({
+  token: config.get('slack.token')
 }).startRTM();
 
-controller.hears(['.* cat .*', 'cat .*', '.* cat'], 'direct_message,direct_mention,mention', function(bot, message) {
+controller.hears(
+  ['.* cat .*', 'cat .*', '.* cat'],
+  'direct_message,direct_mention,mention',
+  function(bot, message) {
     request("http://thecatapi.com/api/images/get?type=gif&format=xml", function(err, res, body) {
-        if (err) {
-            console.log("ERR", err);
-            return;
-        }
-        var matched = body.match(/<url>([^<]+)<\/url>/)
-        if (! (matched && matched[1])) {
-            console.log("no matches:", body);
-            return;
-        }
-        
-        bot.reply(message, matched[1]);
+      if (err) {
+        console.log("ERR", err);
+        return;
+      }
+      var matched = body.match(/<url>([^<]+)<\/url>/);
+      if (!(matched && matched[1])) {
+        console.log("no matches:", body);
+        return;
+      }
+      bot.reply(message, matched[1]);
     });
-});
+  });
 
-controller.hears(['hello', 'hi'], 'direct_message,direct_mention,mention', function(bot, message) {
-
+controller.hears(['hello', 'hi'],
+  'direct_message,direct_mention,mention', function(bot, message) {
     bot.api.reactions.add({
-        timestamp: message.ts,
-        channel: message.channel,
-        name: 'robot_face',
+      timestamp: message.ts,
+      channel: message.channel,
+      name: 'robot_face'
     }, function(err, res) {
-        if (err) {
-            bot.botkit.log('Failed to add emoji reaction :(', err);
-        }
+      if (err) {
+        bot.botkit.log('Failed to add emoji reaction :(', err, res);
+      }
     });
-
-
     controller.storage.users.get(message.user, function(err, user) {
-        if (user && user.name) {
-            bot.reply(message, 'Hello ' + user.name + '!!');
-        } else {
-            bot.reply(message, 'Hello.');
-        }
+      if (err) {
+        console.log(err);
+      }
+      if (user && user.name) {
+        bot.reply(message, 'Hello ' + user.name + '!!');
+      } else {
+        bot.reply(message, 'Hello.');
+      }
     });
-});
+  });
 
-
-controller.hears(['shutdown'], 'direct_message,direct_mention,mention', function(bot, message) {
-
+controller.hears(['shutdown'],
+  'direct_message,direct_mention,mention', function(bot, message) {
     bot.startConversation(message, function(err, convo) {
-
-        convo.ask('Are you sure you want me to shutdown?', [
-            {
-                pattern: bot.utterances.yes,
-                callback: function(response, convo) {
-                    convo.say('Bye!');
-                    convo.next();
-                    setTimeout(function() {
-                        process.exit();
-                    }, 3000);
-                }
-            },
-        {
-            pattern: bot.utterances.no,
-            default: true,
-            callback: function(response, convo) {
-                convo.say('*Phew!*');
-                convo.next();
-            }
+      if (err) {
+        console.log(err);
+      }
+      convo.ask('Are you sure you want me to shutdown?', [{
+        pattern: bot.utterances.yes,
+        callback: function(response, convo) {
+          convo.say('Bye!');
+          convo.next();
+          setTimeout(function() {
+            process.exit();
+          }, 3000);
         }
-        ]);
+      },
+      {
+        pattern: bot.utterances.no,
+        default: true,
+        callback: function(response, convo) {
+          convo.say('*Phew!*');
+          convo.next();
+        }
+      }]);
     });
-});
+  });
 
 // [END app]
