@@ -1,27 +1,40 @@
-// Copyright 2015-2016, Google, Inc.
+// TBD: try
+// https://github.com/Microsoft/BotBuilder/tree/master/Node
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // [START app]
 
 var request = require('request');
 var express = require('express');
 
+var debug = true;
 var app = express();
 
+var commands = [
+  // func, matecher, cmd for debugging
+  [serveCatGif, ['.* cat .*', 'cat .*', '.* cat'], 'catgif']
+];
+
 app.get('/', function(req, res) {
-  console.log(req.query);
-  res.status(200).send("hello");
+  if (!debug) {
+    res.status(200).send('hello');
+  }
+
+  var print = function(ng, ok) {
+    res.status(200).send(ng || ok);
+  };
+
+  var executed;
+  commands.forEach(function(def) {
+    if (req.query.cmd === def[2]) {
+      def[0](print);
+      executed = true;
+      return;
+    }
+  });
+  if (!executed) {
+    console.log(req.query);
+    print(null, 'unregistered');
+  }
 });
 
 // Start the server
@@ -35,30 +48,12 @@ var config = require('config');
 var Botkit = require('botkit');
 
 var controller = Botkit.slackbot({
-    // debug: true,
+  // debug: true,
 });
 
 controller.spawn({
   token: config.get('slack.token')
 }).startRTM();
-
-controller.hears(
-  ['.* cat .*', 'cat .*', '.* cat'],
-  'direct_message,direct_mention,mention',
-  function(bot, message) {
-    request("http://thecatapi.com/api/images/get?type=gif&format=xml", function(err, res, body) {
-      if (err) {
-        console.log("ERR", err);
-        return;
-      }
-      var matched = body.match(/<url>([^<]+)<\/url>/);
-      if (!(matched && matched[1])) {
-        console.log("no matches:", body);
-        return;
-      }
-      bot.reply(message, matched[1]);
-    });
-  });
 
 controller.hears(['hello', 'hi'],
   'direct_message,direct_mention,mention', function(bot, message) {
@@ -83,7 +78,8 @@ controller.hears(['hello', 'hi'],
     });
   });
 
-controller.hears(['shutdown'],
+controller.hears(
+  ['shutdown'],
   'direct_message,direct_mention,mention', function(bot, message) {
     bot.startConversation(message, function(err, convo) {
       if (err) {
@@ -108,6 +104,39 @@ controller.hears(['shutdown'],
         }
       }]);
     });
+  }
+);
+
+commands.forEach(function(def) {
+  var type = 'direct_message,direct_mention,mention';
+  controller.hears(def[1], type, function(bot, message) {
+    def[0](function(ng, ok) {
+      if (ng) {
+        console.log(ng);
+        return;
+      }
+      bot.reply(message, ok);
+    });
   });
+});
+
+/**
+ * Serve a Cat gif
+ * @param {func} handler - handle values
+ */
+function serveCatGif(handler) {
+  request('http://thecatapi.com/api/images/get?type=gif&format=xml', function(err, res, body) {
+    if (err) {
+      return handler(err, null);
+    }
+    var matched = body.match(/<url>([^<]+)<\/url>/);
+    if (!(matched && matched[1])) {
+      console.log('no matches:', body);
+      return handler('service is temporally unavailable', null);
+    }
+    var gifurl = matched[1];
+    handler(null, gifurl);
+  });
+}
 
 // [END app]
