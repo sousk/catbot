@@ -168,12 +168,17 @@ controller.hears(['deploy'], standardDetectionType, (bot, message) => {
       // show & check PR status
       bot.reply(
           message,
-          `${pr.title} (${pr.html_url}) - ${pr.state}`
+          `${pr.title} (${pr.html_url})`
         );
-      if (pr.state !== 'open') {
-        bot.reply(message, 'もうクローズされとるのゥ :eyes:');
+      if (pr.margeable === false) {
+        bot.reply(message, 'これはマージできないのゥ :eyes:');
         return;
       }
+      if (pr.margeable === null) {
+        bot.reply(message, 'まだ計算中のようぢゃのゥ.. また後で試すんぢゃ :eyes:');
+        return;
+      }
+
       if (0 && !pr.base.label.match(/:master$/)) {
         bot.reply(message, '派生ブランチはまだデプロイ対応しとらんのぢゃ.. すまんのぅ :eyes:');
         return;
@@ -189,6 +194,11 @@ controller.hears(['deploy'], standardDetectionType, (bot, message) => {
           console.error(err);
           return;
         }
+        var onerr = msg => {
+          console.log(193);
+          console.error(msg);
+          convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
+        };
         convo.ask('これをデプロイしてよイカ? :eyes:', [{
           pattern: bot.utterances.yes,
           callback: function(response, convo) {
@@ -196,12 +206,27 @@ controller.hears(['deploy'], standardDetectionType, (bot, message) => {
               .then(v => {
                 console.log('labels:', v.data);
                 convo.say('では `label:ShipIt` でゴーゴーぢゃ');
-                convo.next();
+                mergePullRequest(ghrepo(), pr)
+                  .then(res => {
+                    if (res.status === 200) {
+                      convo.say('デプロイしたぞィ');
+                    } else {
+                      convo.say(`> ${res.message}`);
+                      convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
+                    }
+                    convo.next();
+                  })
+                  .catch(err => {
+                    if (err.status === 409) {
+                      convo.say('なんと.. コンフリクトしておるぞイ :eyes:');
+                    } else {
+                      convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
+                      convo.say(`> ${err.data.message}`);
+                    }
+                    convo.next();
+                  });
               })
-            .catch(err => {
-              console.err(err);
-              convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
-            });
+            .catch(onerr);
           }
         },
         {
@@ -391,6 +416,25 @@ function addLabel(repo, issueId, label) {
   return repo._request('POST',
       `/repos/${repo.__fullname}/issues/${issueId}/labels`,
       [label]);
+}
+
+/**
+ * Merge PR
+ *
+ * @param {object} repo -
+ * @param {object} pr - part of pull-request's response json
+ * @return {Promise} -
+ */
+function mergePullRequest(repo, pr) {
+  var input = {
+    'commit_title': '',
+    'commit_message': '',
+    'sha': pr.head.sha,
+    'squash': false
+  };
+  return repo._request('PUT',
+    `/repos/${repo.__fullname}/pulls/${pr.number}/merge`,
+    input);
 }
 
 // [END app]
