@@ -1,7 +1,17 @@
-// TBD: try
+// memo: try
 // https://github.com/Microsoft/BotBuilder/tree/master/Node
 //
+// TBD
+// - GAE でも一時停止できるよう sleep モード入れる
+//
 // [START app]
+//
+
+/**
+ * For developer
+ *
+ * - add config/local.json and run app with NODE_ENV=local to make @bot-account isolate for development
+ */
 
 var debug = true;
 
@@ -48,6 +58,7 @@ BotEmulator.prototype = {
 app.get('/', function(req, res) {
   if (!debug) {
     res.status(200).send('hello');
+    return;
   }
 
   var bot = new BotEmulator(res);
@@ -178,13 +189,17 @@ controller.hears(['deploy'], standardDetectionType, (bot, message) => {
         bot.reply(message, 'まだ計算中のようぢゃのゥ.. また後で試すんぢゃ :eyes:');
         return;
       }
+      if (pr.state !== 'open') {
+        bot.reply(message, 'これはもうクローズされておるのゥ.. :eyes:');
+        return;
+      }
 
       if (0 && !pr.base.label.match(/:master$/)) {
         bot.reply(message, '派生ブランチはまだデプロイ対応しとらんのぢゃ.. すまんのぅ :eyes:');
         return;
       }
       if (!hasLabel(issue, 'LGTM')) {
-        bot.reply(message, 'LGTM が足りなイカのぅ :eyes:');
+        bot.reply(message, '`LGTM` が足りなイカのぅ :eyes:');
         return;
       }
 
@@ -194,39 +209,29 @@ controller.hears(['deploy'], standardDetectionType, (bot, message) => {
           console.error(err);
           return;
         }
-        var onerr = msg => {
-          console.log(193);
-          console.error(msg);
-          convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
-        };
         convo.ask('これをデプロイしてよイカ? :eyes:', [{
           pattern: bot.utterances.yes,
-          callback: function(response, convo) {
-            addLabel(ghrepo(), id, 'ShipIt')
-              .then(v => {
-                console.log('labels:', v.data);
-                convo.say('では `label:ShipIt` でゴーゴーぢゃ');
-                mergePullRequest(ghrepo(), pr)
-                  .then(res => {
-                    if (res.status === 200) {
-                      convo.say('デプロイしたぞィ');
-                    } else {
-                      convo.say(`> ${res.message}`);
-                      convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
-                    }
-                    convo.next();
-                  })
-                  .catch(err => {
-                    if (err.status === 409) {
-                      convo.say('なんと.. コンフリクトしておるぞイ :eyes:');
-                    } else {
-                      convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
-                      convo.say(`> ${err.data.message}`);
-                    }
-                    convo.next();
-                  });
+          callback: (response, convo) => {
+            convo.say('では `shipit` でゴーゴーぢゃ');
+            mergePullRequest(ghrepo(), pr, 'shipit')
+              .then(res => {
+                if (res.status === 200) {
+                  convo.say('マージしたぞィ');
+                } else {
+                  convo.say(`> ${res.message}`);
+                  convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
+                }
+                convo.next();
               })
-            .catch(onerr);
+              .catch(err => {
+                if (err.status === 409) {
+                  convo.say('なんと.. コンフリクトしておるぞイ :eyes:');
+                } else {
+                  convo.say('およ.. 失敗か？ イカんのぅ.. :eyes:');
+                  convo.say(`> ${err.data.message}`);
+                }
+                convo.next();
+              });
           }
         },
         {
@@ -411,24 +416,26 @@ function serveCatGif(bot, message) {
  * @param {int} issueId -
  * @param {string} label -
  * @return {Promise} -
- */
+
 function addLabel(repo, issueId, label) {
   return repo._request('POST',
       `/repos/${repo.__fullname}/issues/${issueId}/labels`,
       [label]);
 }
+*/
 
 /**
  * Merge PR
  *
  * @param {object} repo -
  * @param {object} pr - part of pull-request's response json
+ * @param {string} message -
  * @return {Promise} -
  */
-function mergePullRequest(repo, pr) {
+function mergePullRequest(repo, pr, message) {
   var input = {
     'commit_title': '',
-    'commit_message': '',
+    'commit_message': message || 'emptymsg',
     'sha': pr.head.sha,
     'squash': false
   };
